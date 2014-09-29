@@ -49,7 +49,6 @@ create table Results (
     foreign key (player_id) references players(player_id)
 );
 
-
 insert into Countries values('Algeria', 'ALG', 2381741, 32853800);
 insert into Countries values('Argentina', 'ARG', 2780400, 38747150);
 insert into Countries values('Australia', 'AUS', 7682300, 21050000);
