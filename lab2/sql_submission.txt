@@ -4,6 +4,7 @@ SQL Assignment Submission
 #	Output redirect to CMD: \o ;
 
 === 1. Write a query to find the three medalists and their winning times for ``110m Hurdles Men'' at 2000 Olympics.
+
 SELECT r.medal, p.name, r.result FROM RESULTS r INNER JOIN PLAYERS p on r.player_id = p.player_id WHERE r.event_id in (SELECT event_id FROM Events e Where e.name = '110m Hurdles Men' AND e.olympic_id in (SELECT olympic_id FROM OLYMPICS o WHERE o.year = 2000));
 **************** RESULT ***************************************************************
   medal  |                   name                   | result 
@@ -26,6 +27,7 @@ count
 =============================================================================================
 
 === 3. For how many events at the 2000 Olympics, the result of the event is noted in 'points'?
+
 SELECT DISTINCT e.name FROM EVENTS e WHERE e.result_noted_in = 'points' AND olympic_id in (SELECT o.olympic_id FROM OLYMPICS o WHERE o.year = 2000);
 **************** RESULT***************************************************************
                    name                   
@@ -37,7 +39,6 @@ SELECT DISTINCT e.name FROM EVENTS e WHERE e.result_noted_in = 'points' AND olym
 =============================================================================================
 
 === 4. For 2000 Olympics, find the 5 countries with the smallest values of ``number-of-medals/population''.
-
 ***SHOULD THIS ACCOUNT FOR WINNING THE SAME MEDAL? I made mine ignore that case
 
 WITH preprocess as (
@@ -54,7 +55,7 @@ GROUP BY name, population
 ORDER BY WinningRatio 
 LIMIT 5;
 
-**************** RESULT ***************************************************************
+**************** RESULT (UNSURE IF MULTIPLE MEDALS SHOULD BE IGNORED) ***************************************************************
                    name                   |     winningratio     
 ------------------------------------------+----------------------
  China                                    |   7.556728359797e-10
@@ -203,8 +204,7 @@ birthyear | num_players | num_gold_medals
 
 =============================================================================================
 
-=== 8. Report all *individual events* where there was a tie in the score, and two or more players got awarded a Gold medal. The 'Events' table contains information about
-   whether an event is individual or not (Hint: Use `group by` and `having`).
+=== 8. Report all *individual events* where there was a tie in the score, and two or more players got awarded a Gold medal. The 'Events' table contains information about whether an event is individual or not (Hint: Use `group by` and `having`).
 
 SELECT event_id, COUNT(*) AS mC
 FROM RESULTS
@@ -222,98 +222,22 @@ HAVING COUNT(event_id) > 1;
 
 === 9. Write a query to find the absolute differences between the gold medal and silver medal winners for all Butterfly events (Men and Women) at the Athens Olympics. The output should be: `event_id`, `difference`, where `difference` = time taken by silver medalist - time taken by gold medalist
 
-***HOW DO YOU TELL WHAT BUTTERFLY IS?
-
 WITH 
-	good_events AS (SELECT DISTINCT event_id FROM EVENTS WHERE olympic_id in 			(SELECT olympic_id FROM Olympics WHERE city = 'Athens')),
-	gold AS (SELECT DISTINCT event_id, result FROM RESULTS WHERE medal = 'GOLD' 			AND event_id in (SELECT event_id FROM good_events)),
-	silver AS (SELECT DISTINCT event_id, result FROM RESULTS WHERE medal = 			'SILVER' AND event_id in (SELECT event_id FROM good_events))
+	good_events AS (SELECT DISTINCT event_id FROM EVENTS WHERE name 	like '%Butterfly%' AND olympic_id in 
+		(SELECT olympic_id FROM Olympics WHERE city = 'Athens')),
+	gold AS (SELECT DISTINCT event_id, result FROM RESULTS WHERE 		medal = 'GOLD' AND event_id in (SELECT event_id FROM 			good_events)),
+	silver AS (SELECT DISTINCT event_id, result FROM RESULTS WHERE 		medal = 'SILVER' AND event_id in (SELECT event_id FROM 			good_events))
 SELECT g.event_id, (s.result - g.result) AS difference 
 FROM gold g INNER JOIN silver s on g.event_id = s.event_id;
 
 **************** RESULT ***************************************************************
-
- event_id |     difference      
-----------+---------------------
- E91      |   0.540000000000006
- E119     |   -2.84999999999999
- E121     |  -0.339999999999989
- E135     |   -5.71000000000001
- E75      |   0.120000000000005
- E143     |                  12
- E53      |   0.560000000000002
- E115     |  0.0500000000000114
- E31      |   0.120000000000005
- E85      |                2.94
- E107     |  0.0100000000000016
- E5       |   0.289999999999999
- E141     |                  34
- E9       |   0.170000000000002
- E89      | 0.00999999999999801
- E117     |                 -73
- E71      |   0.560000000000002
- E37      |   0.530000000000001
- E51      |                1.64
- E131     |               -0.04
- E67      |                 0.5
- E3       |   0.620000000000118
- E21      |  0.0800000000000001
- E103     |    2.54000000000008
- E93      |   0.129999999999995
- E63      |   0.300000000000011
- E35      |    2.39999999999999
- E55      |   0.220000000000002
- E33      |   0.219999999999999
- E39      |    1.36000000000001
- E101     |   0.200000000000045
- E13      |  0.0399999999999991
- E11      |   0.510000000000005
- E15      |                0.32
- E47      |    0.52000000000001
- E79      |   0.150000000000006
- E129     |               -0.02
- E105     |                 244
- E155     | -0.0500000000000007
- E111     |   0.419999999999959
- E23      | 0.00999999999999979
- E153     |  -0.239999999999998
- E125     |               -1.66
- E77      |   0.159999999999997
- E113     |   0.159999999999997
- E87      |    1.80000000000001
- E57      |   0.129999999999999
- E1       |    4.29000000000019
- E43      |   0.519999999999996
- E139     | -0.0200000000000005
- E133     |               -1.55
- E73      |    3.55000000000001
- E95      |    2.55000000000001
- E29      |    1.88999999999999
- E127     |                -517
- E41      |    0.22999999999999
- E27      |                0.27
- E149     |                   0
- E25      |  0.0300000000000011
- E49      |   0.189999999999998
- E123     |   -3.09999999999999
- E61      |                   4
- E109     |   0.310000000000002
- E99      |    1.15000000000001
- E19      |   0.319999999999993
- E83      |   0.449999999999989
- E17      |  0.0599999999999952
- E59      |                   5
- E45      |   0.310000000000002
- E97      |                4.69
- E7       |   0.130000000000003
- E65      |   0.260000000000019
- E145     | -0.0499999999999998
- E69      |   0.479999999999997
- E137     |  -0.119999999999999
- E147     |               -0.16
- E151     | -0.0399999999999991
- E81      |    1.19000000000003
-(78 rows)
+ event_id |     difference     
+----------+--------------------
+ E45      |  0.310000000000002
+ E13      | 0.0399999999999991
+ E43      |  0.519999999999996
+ E15      |               0.32
+(4 rows)
 
 =============================================================================================
 
@@ -404,7 +328,7 @@ SEELCT 60
               where extract(year from p.birthdate) = 1975
               group by c.name;
 
-** THIS HAS ISSUES SINCE IT REMOVCES ALL THE COUNTRIES THAT DON'T UPHOLD THE WHERE AFTER THE MERGE... YOU NEED TO MAKE IT FILTER THAT BEFORE THE JOIN ****
+** THIS HAS ISSUES SINCE IT REMOVES ALL THE COUNTRIES THAT DON'T UPHOLD THE WHERE AFTER THE MERGE... YOU NEED TO MAKE IT FILTER THAT BEFORE THE JOIN ****
 ***PROOF: It only included 20 columns
 
 
