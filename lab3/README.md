@@ -72,11 +72,28 @@ See above links for some examples.
 
    1. (a) Write a query to join the two tables described above (*R* and *S*) on *C*, such that if a tuple from R and a tuple from S both have
      attribute C set to NULL, then they are joined together. So the result will contain `(a3, 30, 30, d1)` and `(a4, 0, NULL, d2)`.
+
+
+create table R (A char(10), B integer, C integer);
+create table S (C integer, D char(10));
+	insert into R values('a1', 15, 15);
+	insert into R values('a2', 20, 20);
+	insert into R values('a3', 30, 30);
+	insert into R values('a4', 0, NULL);
+	insert into S values(30, 'd1');
+	insert into S values(NULL, 'd2');
+
+
      (b) Write a query to instead get such tuples padded with NULL, i.e., the output should contain, in addition to the inner join result, `(a4, 0, NULL, NULL)` and `(NULL, NULL, NULL, d2)`.
 
-   1.  Write a "trigger" to keep the TeamMedals table updated when a new entry is
-   dded to the Results table (don't do anything if the new entry refers to an individual
-   vent). Database systems tend to be very picky about the trigger syntax, so be careful.
+SELECT * FROM R FULL OUTER JOIN S on ((R.C = S.C));
+
+
+
+   1.  Write a "trigger" to keep the TeamMedals table updated when a new entry is added to the Results table (don't do anything if the new entry refers to an individual event). Database systems tend to be very picky about the trigger syntax, so be careful.
+
+
+
 
    1. Write a PL/pgSQL procedure to create a list of all "gold medalists" from USA in ATH2004 olympics, output in XML format as follows:
 
@@ -93,7 +110,6 @@ See above links for some examples.
                   </players>
               </medal>
               ...
-
 ---
 
 ### Pandas
