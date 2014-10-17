@@ -1,6 +1,6 @@
 ---
 
-# CMSC 498O: Data Wrangling
+# CMSC 498O: Data Extraction, Integration, and Wrangling
 
 ---
 
@@ -157,6 +157,8 @@
     - Comparison shopping
     - Author disambiguation in citation data
     - Connecting up accounts on online networks
+    - Crime/Fraud Detection
+    - Census
     - ...
 
 - Important to correctly identify references
@@ -168,3 +170,306 @@
     - Abbreviations/data truncation
     - Data entry errors, Missing values, Data formatting issues complicate the problem
     - Heterogeneous data from many diverse sources
+
+- No magic bullet here !!
+    - Approaches fairly domain-specific
+    - Be prepared to do a fair amount of manual work
+
+--- 
+
+## Entity Resolution: Three Slightly Different Problems
+
+- Setup:
+    - In the real world, there are some entities (people, addresses, businesses, etc.)
+    - We have a large collection of noisy, ambiguous "references" to those entities (also called "mentions")
+- **Deduplication**
+    - Cluster the records/mentions that correspond to the same entity
+    - Potentially choose/construct a cluster representative (requires "Canonicalization")
+        - This is in itself a non-trivial task (e.g., averaging may work for numerical attributes, but what about string attributes?)
+
+    <img src="multimedia/er-1.png" width=300>
+
+- **Record Linkage**
+    - Match records across two different databases (e.g., two social networks, or financial records w/ campain donations)
+    - Tyipcally assume that the two databases are fairly clean
+
+    <img src="multimedia/er-2.png" width=300>
+
+- **Reference Matching**
+    - Match "references" to clean records in a reference table
+    - Commonly comes up in "entity recognition" (e.g., matching newspaper article mentions to names of people)
+
+    <img src="multimedia/er-3.png" width=300>
+
+- Somewhat different techniques, but a lot of similarities
+
+--- 
+
+## Entity Resolution: Data Matching
+
+- Comprehensive treatment: Data Matching; P. Christen; 2012 (Springer Books -- not available for free)
+
+- One of the key issues is finding similarities between two references 
+    - What similarity function to use?
+
+- Edit Distance Functions 
+    - Levenstein: min number of changes to go from one reference to another
+        - A change is defined to be: a single character insertion or deletion or substitution
+        - May add transposition
+    - Many adjustments to the basic idea proposed (e.g., higher weights to changes at the start)
+    - Not cheap to compute, especially for millions of pairs
+
+- Set Similarity
+    - Some function of intersection size and union size
+    - E.g., Jaccard distance = size of intersection/size of union
+    - Much faster to compute
+
+- Vector Similarity
+    - Cosine similarity
+
+- Q-Grams 
+    - Find all length-q substrings in each string
+    - Use set/vector similarity on the resulting set
+
+- Several approaches that combine the above (especially q-grams and edit distance, e.g., Jaro-Winkler)
+
+- [Soundex](http://en.wikipedia.org/wiki/Soundex): Phonetic Similarity Metric
+    - Homophones should be encoded to the same representation so spelling errors can be handled
+    - Robert and Rupert get assigned the same code (R163), but Rubin yields R150
+
+- May need to use Translation Tables
+    - To handle abbreviations, nicknames, other synonyms
+
+- Different types of data requires more domain-specific functions
+    - E.g., geographical locations, postal addresses
+    - Also much work on computing distances between XML documents etc.
+
+
+--- 
+
+## Entity Resolution: Algorithms
+
+- Simple threshold method
+    - If the distance below some number, the two references are assumed to be equal
+    - May review borderline matches manually
+
+- Can be generalized to rule-based: 
+    - Example from Christen, 2012
+
+    <img src="multimedia/er-4.png" width=600>
+
+- May want to give more weight to matches involving rarer words
+    - More naturally applicable to record linkage problem
+    - If two records match on a rare name like "Machanavajjhala", they are likely to be a match
+    - Can formalize this as "probabilistic record linkage" (see tutorial slides for more details)
+
+- Constraints: May need to be satisfied, but can also be used to find matches
+    - Often have constraints on the matching possibilities
+    - Transitivity: M1 and M2 match, and M2 and M3 match, and M1 and M3 must match
+    - Exclusivity: M1 and M2 match --> M3 cannot match with M2
+    - Other types of constraints:
+        - E.g., if two papers match, their venues must match
+
+- Clustering-based ER Techniques:
+    - Deduplication is basically a clustering problem
+    - Can use clustering algorithms for this purpose
+    - But most clusters are very small (in fact of size = 1)
+    - Some clustering algorithms are better suited for this, especially Agglomerative Clustering
+        - Unlikely K-Means would work here
+
+- Collective Entity Resolution:
+    - Do the resolution collectively
+    - Much research work on this topic, but pretty domain-specific at this point
+    - Example from: Collective ER in Relational Data; Bhattacharya, Getoor.
+
+    <img src="multimedia/er-5.png" width=500>
+
+
+
+- Crowdsourcing
+    - Humans are often better at this task
+    - Can use one of the crowdsourcing mechanisms (e.g., Mechanical Turk) for getting human input on the difficult pairs
+    - Quite heavily used commercially (e.g., to disambiguate products, restaurants, etc.)
+
+
+--- 
+
+## Entity Resolution: Scaling to Big Data
+
+- One immediate problem
+    - There are N<sup>2</sup> possible matches
+    - Must reduce the search space 
+
+- Use some easy-to-evaluate criterion to restrict the pairs considered further
+    - May lead to false negative (i.e., missed matches) depending on how noisy the data is
+
+- Much work on this problem as well, but domain-specific knowledge likely to be more useful in practice
+
+- One useful technique to know: **min-hash signatures**
+    - Can quickly find potentially overlapping sets
+    - Turns up to be very useful in many domains (beyond ER)
+
+
+---
+
+## Data Integration
+
+- Goal: Combine data residing in different sources and provide users with a unified view of these data for querying
+    - Each data source has its own schema called **local schemas** (much work assumes relational schemas, but some work on XML as well)
+    - The unified schema is often called **mediated schema** or **global schema**
+
+- Two slightly different scenarios
+
+    1. Extract and load all data from the sources, process it, and put it all in a single database (often called *data warehousing*)
+        - Relatively easier problem - only need one-way-mappings
+        - Query performance predictable and under your control
+
+    1. Keep the data in the sources, but figure out the mappings between them and the mediated schema, and retrieve data from the sources as needed
+        - Need two-way mappings -- a query on the mediated schema needs to be translated into queries over data source schemas
+        - Not as efficient and clean as data warehousing, but a better fit for dynamic data 
+        - Or when data warehousing is not feasible
+
+- Key challenges
+    - Data extraction, reconciliation, and cleaning
+        - Get the data from each source in a structured form 
+        - Often need to use wrappers to extract data from web sources
+        - May need to define a schema
+    - Schema alignment and mapping
+        - Decide on the best mediated schema
+        - Figure out mappings and matchings between the local schemas and the global schema
+    - Answer queries over the global schema
+        - In the second scenario, need to figure out how to map a query on global schema onto queries over local schemas
+        - Also need to decide which sources contain relevant data
+    - Limitations in mechanisms for accessing sources
+        - Many sources have limits on how you can access them
+        - Limits on the number of queries you can issues (say 100 per min)
+        - Limits on the types of queries (e.g., must enter a zipcode to get information from a web source)
+
+- Example from: Querying Heterogeneous Information Sources; Levy et al.
+
+    <img src="multimedia/data-integration-1.png" width=600>
+
+
+--- 
+
+## Data Integration: Schema Matching or Alignment
+
+- Goal: Identify corresponding elements in two schemas
+    - As a first step toward constructing a global schema
+
+- **Ontology alignment** is a closely related problem, but studied in a different domain    
+    - Benchmark and yearly evaluation: http://oaei.ontologymatching.org/ 
+    - Test cases have 1000's of concepts/terms in the ontologies to be matched
+
+- Example from: Generic Schema Matching with Cupid; Madhavan et al.
+
+    <img src="multimedia/data-integration-2.png" width=600>
+
+- Techniques:
+    - Use names of the attributes, any textual description, and metadata (e.g., data types, constraints)
+    - Use structure in the schemas 
+    - Overall quite domain-specific
+
+---
+
+## Data Integration: Schema Mapping
+
+- Two subtly different approaches to maintain mappings between local schemas and global schema
+    - Global-as-view approach: For each local schema, specify a transformation to the global schema
+    - Local-as-view approach:For each local schema, specify a view on the global schema that it is equal to
+
+- Example: Books
+    - S1: Publisher XYZ Website
+            Book(ISBN, Title, List_Price, Author_List, Published_Date)
+
+    - S2: Library 
+            Books(ISBN, Title, Acquired_Date)
+            Authors(ISBN, Name)
+            Rented(ISBN, Customer_Name, Rental_Start_Date, Rental_End_Date)
+
+    - S3: Review Website
+            Books(Book_ID, Title, Authors)
+            Review(Book_ID, Reviewed_By, Review_Text)
+
+    - S4: Old Books Seller (Only books before 1950)
+            Book(Title, Price, Published_Year)
+            Authors(Title, A_Name)
+            
+    - Desired Global Schema: 
+          Book(ISBN, Title, Edition, Price)
+          Author(Author_ID, First_Name, Last_Name)
+          BookAuthors(ISBN, Author_ID)
+          Publisher(Publisher_ID, Name, Address)
+          BookPublishers(ISBN, Publisher_ID)
+
+
+- Global-as-View (GAV) Approach:
+    - Write the mapping from each of S1, S2, S3, S4 to the desired global schema
+    - For example, for S2, we may do the following:
+
+        select ISBN, Title, NULL, NULL into Books
+        from S2.Books;
+        select new_author_id() as Author_ID, extract_firstname(Name) as First_Name, extract_lastname(Name) as Last_Name into Author
+        from S2.Authors;
+        select  ISBN, **Author_id**
+        from S2.Authors;
+
+    - The last one is a little bit tricky and would require a join to get back the Author_ID
+    - S2 was probably the easiest here -- the others require splitting up lists etc., and would be more involved
+ 
+- Local-as-View (LAV) Approach:
+    - Write each of the sources as a view of the global schema
+    - For example: 
+        
+        S1.Book = select ISBN, Title, Price as List_Price, concat(First_Name || Last_Name) as Author_List, NULL
+                  from Book natural join Author
+                  group by ISBN, Title, Price;
+
+    - The `concat` above can be used to concatenate the author names to get a single Author_List
+
+--
+
+## Information Extraction
+
+- Much of the following discussion and material is from the following sources:
+    - Stanford NLP Course, lectures on Information Extraction and Named Entity Recognition 
+        - [Coursera Link](https://class.coursera.org/nlp/lecture)
+        - PDFs can be directly found at: http://web.stanford.edu/class/cs124/
+        - IE Overview, by Christopher Manning: https://web.stanford.edu/class/cs124/lec/Information_Extraction_and_Named_Entity_Recognition.pptx
+        - Relation Extraction, by Dan Jurafsky: https://spark-public.s3.amazonaws.com/cs124/slides/rel.pdf
+    - Natural Language Toolkit Book: http://www.nltk.org/book/ch07.html
+
+- Goal: automatically extract structured information from unstructured text to crete a structured database or a knowledge base (e.g., Google Knowledge Graph)
+
+- Applications:
+    - News tracking, Customer care, Data cleaning, Classified ads, PIM, Citation databases, Opinion databases, ...
+    - Apple Mail, GMail, etc., use simpler IE techniques to identify events to put in calendars etc.
+    - Constructing Knowledges Bases automatically
+    - Question Answering (e.g., IBM Watson in Jeopardy)
+
+- **Named Entity Recognition**:
+    - A key subtask: identify and classify names in the text
+    - Correctly identifying named entities can help with searching, extracting further relationships, answering questions, etc.
+    - Hard to do without using context
+
+    <img src="multimedia/ie-1.png" width=400>
+
+    <img src="multimedia/ie-3.png" width=400>
+
+- **Relation Extraction**:
+    - Extracting, typically binary, relationships between entities
+    - E.g., "The Washington Nationals are a professional baseball team based in Washington, D.C."
+        - BasedIn(Washington Nationals, Washington D.C.)
+        - IsA(Washington Nationals, Professional Baseball Team)
+
+    <img src="multimedia/ie-2.png" width=400>
+
+- Generally two distinct approaches to either problem
+    - Rule-based: Using handwritten (or in some cases, machine-learned) rules 
+        - Higher precision (i.e., extracted entities or relations are generally correct), but low recall (i.e., misses too many things)
+        - Typically assume NLP parsing as a pre-cursor
+            - Otherwise don't have enough context (is "Reading" a verb or a reference to a town?)
+    - Machine learning-based
+        - Much work on more sophisticated approaches to both problems
+
+- Read the two slide decks above for more details
