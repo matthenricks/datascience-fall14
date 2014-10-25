@@ -45,7 +45,10 @@ To install dedupe in your virtual machine you need to follow the instructions li
 
 Use dedupe to perform entity resolution for the provided products. If you choose to use the template file `product_dedup.py` you will need to edit it in three places. You need to specify the fields that dedupe will use for entity resolution, you need to specify any custom field comparison function you want to use, and finally you can choose the trade-off between precision and recall while training the entity resolution mechanism. Please read the comments in the file carefully. 
 
-As mentioned above, running this script will output a file named `products_out.csv`. You need to compare the entity resolution result in this output file with the provided ground truth file and report the precision and recall your method achieved. Please include a description of the fields you used and the comparison function for each field in your report. You should also report the precision and recall your algorithm achieves. Notice that you will have to write your own evaluation script which needs to be submitted as well together with your `product_dedup.py` script and your report.
+As mentioned above, running this script will output a file named `products_out.csv`. You need to compare the entity resolution result in this output
+file with the provided ground truth file and report the precision and recall your method achieved. Please include a description of the fields you used
+and the comparison function for each field in your report. You should also report the precision and recall your algorithm achieves. Notice that you
+will have to write your own evaluation script which needs to be submitted as well together with your `product_dedup.py` script and your report.
 
 
 ### Part 2: Information Extraction using NLTK 

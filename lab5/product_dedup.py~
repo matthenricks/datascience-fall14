@@ -95,8 +95,8 @@ else:
     fields = [
         {'field' : 'title', 'type': 'String'},
         {'field' : 'price', 'type': 'Custom', 'has missing':True, 'comparator' : customComparator},
-	{'field' : 'manufacturer', 'type': 'String', 'has missing':True}
-        #{'field' : 'description', 'type': 'String', 'has missing':True}
+	{'field' : 'manufacturer', 'type': 'String', 'has missing':True},
+        {'field' : 'description', 'type': 'String', 'has missing':True}
         ]
 
     # Create a new deduper object and pass our data model to it.
