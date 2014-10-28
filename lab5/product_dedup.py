@@ -41,8 +41,11 @@ training_file = 'products_training.json'
 
 # Dedupe can take custom field comparison functions
 # Here you need to define any custom comparison functions you may use for different fields
-
+# This can understand different magnetudes of numbers
 def customComparator(field_1, field_2) :
+	# Recognize the currency
+	if (field1.
+	regex = r'.*(\d+).*gdp'
     if field_1 and field_2 :
         if field_1 == field_2:
             return 1
