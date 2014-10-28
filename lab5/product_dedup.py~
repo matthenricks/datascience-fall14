@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# <nbformat>3.0</nbformat>
+
+# <codecell>
+
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -12,7 +17,70 @@ from numpy import nan
 import dedupe
 from unidecode import unidecode
 
-# ## Logging
+# <headingcell level=2>
+
+# LDA Section
+
+# <codecell>
+
+# Now, include the cleaning
+from gensim import corpora
+from gensim.models.ldamodel import LdaModel
+from nltk.stem.porter import *
+from nltk.corpus import stopwords
+from nltk.tokenize import WordPunctTokenizer
+
+# <codecell>
+
+# Set up the infrastructure to clean the text
+stopset = set(stopwords.words('english'))
+stemmer = PorterStemmer()
+def cleanText(column):
+    tokens = WordPunctTokenizer().tokenize(column)
+    clean = [token.lower() for token in tokens if token.lower() not in stopset and len(token) > 5]
+    final = [stemmer.stem(word) for word in clean]
+    myString = ""
+    for x in cleanText(column):
+        myString += x + ' '
+    return ([myString.split()])
+
+# <codecell>
+
+from gensim.matutils import cossim
+
+# Dictionary Loading
+dictionary_path = 'dictionary.mm'
+corpus_path = 'corpus.mm'
+dictionary = corpora.Dictionary.load('dictionary.mm')
+lda_path = 'lda.mm'
+# model_tfidf = models.TfidfModel(mm_bow, id2word=id2word, normalize=True)
+
+if not os.path.isfile(lda_path):
+    corpus = corpora.MmCorpus('corpus.mm')
+    lda_model = LdaModel(corpus=corpus, id2word=dictionary, num_topics=100, passes=5)
+    lda_model.save(lda_path)
+else:
+    lda_model = LdaModel.load(lda_path)
+
+lda_model.print_topics(20)
+
+def compare_descriptions(desc1, desc2):
+    dv_1 = dictionary.doc2bow(desc1.lower().split())
+    dv_2 = dictionary.doc2bow(desc2.lower().split())
+    
+    print dv_1
+    print dv_2
+    dv_1 = lda_model[dv_1]
+    dv_2 = lda_model[dv_2]
+    return cossim(dv_1, dv_2)
+
+# <headingcell level=3>
+
+# END LDA
+
+# <codecell>
+
+# ## Logging - ADD THIS IN
 
 # Dedupe uses Python logging to show or suppress verbose output. Added for convenience.
 # To enable verbose logging, run `python examples/csv_example/csv_example.py -v`
@@ -28,8 +96,7 @@ elif opts.verbose >= 2:
     log_level = logging.DEBUG
 logging.getLogger().setLevel(log_level)
 
-
-# ## Setup
+# <codecell>
 
 # Switch to our working directory and set up our input and out put paths,
 # as well as our settings and training file locations
@@ -38,20 +105,7 @@ output_file = 'products_out.csv'
 settings_file = 'products_learned_settings'
 training_file = 'products_training.json'
 
-
-# Dedupe can take custom field comparison functions
-# Here you need to define any custom comparison functions you may use for different fields
-# This can understand different magnetudes of numbers
-def customComparator(field_1, field_2) :
-	# Recognize the currency
-	regex = r'gdp'
-    if field_1 and field_2 :
-        if field_1 == field_2:
-            return 1
-        else:
-            return 0
-    else :
-        return nan
+# <codecell>
 
 def preProcess(column):
     """
@@ -64,6 +118,7 @@ def preProcess(column):
     column = column.strip().strip('"').strip("'").lower().strip()
     return column
 
+# <codecell>
 
 def readData(filename):
     """
@@ -80,9 +135,38 @@ def readData(filename):
 
     return data_d
 
+# <codecell>
 
 print 'importing data ...'
 data_d = readData(input_file)
+
+# <codecell>
+
+# More advanced LDA comparator
+def descComparator(field_1, field_2):
+    return compare_descriptions(field_1, field_2)
+
+# <codecell>
+
+# Price comparator
+gdp_usd = 1.61
+def convert_to_US(field):
+    if "gbp" in field:
+        nums = re.findall(r'\b\d+\.*\d*\b', field)
+        return float(nums[0].strip()) * gdp_usd
+    else:
+        return float(field.strip())
+    
+def priceComparator(field_1, field_2) :
+	# Recognize the currency
+    if field_1 and field_2 :
+        field_1 = convert_to_US(field_1)
+        field_2 = convert_to_US(field_2)
+        return (field_1 - field_2)
+    else :
+        return nan
+
+# <codecell>
 
 # ## Training
 
@@ -96,11 +180,11 @@ else:
     # to be used and specify any customComparators. Please read the dedupe manual for details
     fields = [
         {'field' : 'title', 'type': 'String'},
-        {'field' : 'price', 'type': 'Custom', 'has missing':True, 'comparator' : customComparator},
-	{'field' : 'manufacturer', 'type': 'String', 'has missing':True}
-        #{'field' : 'description', 'type': 'String', 'has missing':True}
+        {'field' : 'price', 'type': 'Custom', 'has missing':True, 'comparator' : priceComparator},
+        {'field' : 'manufacturer', 'type': 'String', 'has missing':True},
+        {'field' : 'description', 'type': 'Custom', 'has missing':True, 'comparator' : descComparator}
         ]
-
+    
     # Create a new deduper object and pass our data model to it.
     deduper = dedupe.Dedupe(fields)
 
@@ -138,10 +222,13 @@ else:
     with open(settings_file, 'w') as sf :
         deduper.writeSettings(sf)
 
+# <codecell>
 
 # ## Blocking
 
 print 'blocking...'
+
+# <codecell>
 
 # ## Clustering
 
@@ -213,3 +300,4 @@ with open(output_file, 'w') as f_output:
                     row.append(None)
                 row.append(None)
             writer.writerow(row)
+
