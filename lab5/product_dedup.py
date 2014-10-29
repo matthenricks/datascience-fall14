@@ -19,13 +19,14 @@ from unidecode import unidecode
 
 # <headingcell level=2>
 
-# LDA Section
+# MODEL Section
 
 # <codecell>
 
 # Now, include the cleaning
 from gensim import corpora
-from gensim.models.ldamodel import LdaModel
+#from gensim.models.ldamodel import LdaModel
+from gensim.models.tfidfmodel import TfidfModel
 from nltk.stem.porter import *
 from nltk.corpus import stopwords
 from nltk.tokenize import WordPunctTokenizer
@@ -37,7 +38,7 @@ stopset = set(stopwords.words('english'))
 stemmer = PorterStemmer()
 def cleanText(column):
     tokens = WordPunctTokenizer().tokenize(column)
-    clean = [token.lower() for token in tokens if token.lower() not in stopset and len(token) > 5]
+    clean = [token.lower() for token in tokens if token.lower() not in stopset and len(token) > 2]
     final = [stemmer.stem(word) for word in clean]
     myString = ""
     for x in cleanText(column):
@@ -52,29 +53,34 @@ from gensim.matutils import cossim
 dictionary_path = 'dictionary.mm'
 corpus_path = 'corpus.mm'
 dictionary = corpora.Dictionary.load('dictionary.mm')
-lda_path = 'lda.mm'
-# model_tfidf = models.TfidfModel(mm_bow, id2word=id2word, normalize=True)
+#model_path = 'lda.mm'
+model_path = 'tfidf_model.mm'
 
-if not os.path.isfile(lda_path):
+model = None
+
+if not os.path.isfile(model_path):
     corpus = corpora.MmCorpus('corpus.mm')
-    lda_model = LdaModel(corpus=corpus, id2word=dictionary, num_topics=100, passes=5)
-    lda_model.save(lda_path)
+    #model = LdaModel(corpus=corpus, id2word=dictionary, num_topics=100, passes=5)
+    model = TfidfModel(corpus, id2word=dictionary, normalize=True)
+    model.save(model_path)
 else:
-    lda_model = LdaModel.load(lda_path)
+    #model = LdaModel.load(model_path)
+    model = TfidfModel.load(model_path)
 
-lda_model.print_topics(20)
+#model.print_topics(20)
+model.num_docs
 
 def compare_descriptions(desc1, desc2):
     dv_1 = dictionary.doc2bow(desc1.lower().split())
     dv_2 = dictionary.doc2bow(desc2.lower().split())
     
-    dv_1 = lda_model[dv_1]
-    dv_2 = lda_model[dv_2]
+    dv_1 = model[dv_1]
+    dv_2 = model[dv_2]
     return cossim(dv_1, dv_2)
 
 # <headingcell level=3>
 
-# END LDA
+# END MODEL
 
 # <codecell>
 
@@ -155,12 +161,18 @@ def convert_to_US(field):
     else:
         return float(field.strip())
     
+import math
+
 def priceComparator(field_1, field_2) :
 	# Recognize the currency
     if field_1 and field_2 :
         field_1 = convert_to_US(field_1)
         field_2 = convert_to_US(field_2)
-        return (field_1 - field_2)
+	tolerance = 0.05 * field_1 + field_2
+	if (math.fabs(field_1 - field_2) <= tolerance):
+		return 1
+	else:
+		return 0
     else :
         return nan
 

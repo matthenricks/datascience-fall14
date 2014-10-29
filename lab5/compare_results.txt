@@ -1,0 +1,6 @@
+found duplicate
+36546
+precision
+0.018469873584
+recall
+0.519230769231

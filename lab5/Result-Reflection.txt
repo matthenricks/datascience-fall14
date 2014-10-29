@@ -1,0 +1,8 @@
+For the Dedupe portion of the problem, I had initially altered the model very simply. Including manufacturer (with String comparison) in addition to the given price and title comparators. This resulted in a low precision (0.3) and recall (0.2) when I performed the analysis on the main data. This was also done with a R/P in the training data of 2.
+
+In order to improve this, I attempted add/enhance additional features. The first was improving the price by making it cognizant of prices that are about the same of each other. The second was including LDA or TfIdf on the description, since String/Text comparisons would take too long. 
+LDA performed poorly because it was able to correlate the topics well, but that wouldn't translate strongly enough into the individual product. TfIdf also provides pretty poor results, obtaining a very strong recall, but a weak precision. This could be due to poor training data. Result can be seen in compare_results.txt.
+
+Overall, another feature I feel that I could add is a Tfidf of only the  version words, like 'v10', 'upgrade', etc.. This seems to be a sore spot for the model, in the title and in the description.
+
+For the LDA and TfIdf, I have created a separate script to first make a dictionary, then a corpus from the used documents, and then, a tuned model. This is saved then opened into the python script.
