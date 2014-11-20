@@ -1,24 +1,473 @@
 ===================== Cassandra: CQL Queries and Results
+CREATE KEYSPACE IF NOT EXISTS partone WITH replication = {'class':'SimpleStrategy', 'replication_factor': '2'};
+USE partone;
+CREATE TABLE IF NOT EXISTS adtable (ownerid int,adid int,numclicks int,numimpressions int,PRIMARY KEY (ownerid, adid));
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (1,1,1,10);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (1,2,0,5);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (1,3,1,20);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (1,4,0,15);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (2,1,0,10);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (2,2,0,55);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (2,3,0,13);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (2,4,0,21);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (3,1,1,32);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (3,2,0,23);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (3,3,2,44);
+INSERT INTO adtable (OwnerId, AdId, numClicks, numImpressions) VALUES (3,4,1,36);
 
+SELECT numclicks FROM adtable WHERE ownerid = 1 AND adid = 3;
+ numclicks
+-----------
+         1
 
-
-
+SELECT numclicks FROM adtable WHERE ownerid = 2;
+ numclicks
+-----------
+         0
+         0
+         0
+         0
 
 ===================== Cassandra: Python Code
+#!/usr/bin/env python
 
+# Copyright 2013-2014 DataStax, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+import logging
 
+log = logging.getLogger()
+#log.setLevel('DEBUG')
+log.setLevel('WARN')
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+log.addHandler(handler)
 
+from cassandra import ConsistencyLevel
+from cassandra.cluster import Cluster
+from cassandra.query import SimpleStatement
+
+KEYSPACE = "partone"
+
+def main():
+    cluster = Cluster(['127.0.0.1'])
+    session = cluster.connect()
+
+    log.info("creating keyspace...")
+    session.execute("""
+        CREATE KEYSPACE IF NOT EXISTS %s
+        WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': '2' }
+        """ % KEYSPACE)
+
+    log.info("setting keyspace...")
+    session.set_keyspace(KEYSPACE)
+
+    log.info("dropping table...")
+    session.execute("""
+        DROP TABLE IF EXISTS adtable
+        """)
+
+    log.info("creating table...")
+    session.execute("""
+        CREATE TABLE IF NOT EXISTS adtable (
+            ownerid int,
+    	    adid int,
+            numclicks int,
+            numimpressions int,
+            ctr float,
+            PRIMARY KEY (OwnerId, AdId)
+        )
+        """)
+
+    inputCommand = session.prepare("""
+        INSERT INTO adTable (ownerid, adid, numclicks, numimpressions, ctr)
+        VALUES (?, ?, ?, ?, ?)
+        """)
+
+    inputArgs = [(1,1,1,10),(1,2,0,5),(1,3,1,20),(1,4,0,15),(2,1,0,10),(2,2,0,55),(2,3,0,13),(2,4,0,21),(3,1,1,32),(3,2,0,23),(3,3,2,44),(3,4,1,36)]
+
+    for (oId, aId, nC, nI) in inputArgs:
+        log.info("inserting row %d, %d, %d, %d" % (oId, aId, nC, nI))
+        session.execute(inputCommand, (oId, aId, nC, nI, float(nC)/float(nI)))
+
+    # Now, lets begin the fun stuff!
+
+    # 	- Find the ctr (numClicks/numImpressions) for each OwnerId, AdId pair.
+    mission1 = session.execute_async("SELECT ownerid, adid, ctr FROM adtable")
+    try:
+        rows = mission1.result()
+    except Exception:
+        log.exeception()
+    
+    print "ownerid\tadid\tctr"
+    for row in rows:
+        print "\t".join([str(row.ownerid), str(row.adid), str(row.ctr)])
+
+    # 	- Compute the ctr for each OwnerId.
+    mission2 = session.execute_async("SELECT ownerid, ctr FROM adtable")
+    ownerSum = {}
+    ownerCount = {}
+    try:
+        rows = mission2.result()
+    except Exception:
+        log.exeception()
+
+    for row in rows:
+        if ownerSum.has_key(row.ownerid):
+            ownerSum[row.ownerid] += row.ctr
+            ownerCount[row.ownerid] += 1
+        else:
+            ownerSum[row.ownerid] = row.ctr
+            ownerCount[row.ownerid] = 1
+
+    print "ownerid\tctr"
+    for keyval in ownerSum.keys():
+        print "\t".join([str(keyval), str(ownerSum[keyval]/ownerCount[row.ownerid])])
+
+    # 	- Compute the ctr for OwnerId = 1, AdId = 3.
+    mission3 = session.execute_async("SELECT ownerid, adid, ctr FROM adtable WHERE ownerid = 1 AND adid = 3")
+    try:
+        rows = mission3.result()
+    except Exception:
+        log.exeception()
+    
+    print "ownerid\tadid\tctr"
+    for row in rows:
+        print "\t".join([str(row.ownerid), str(row.adid), str(row.ctr)])    
+
+    # 	- Compute the ctr for OwnerId = 2.
+    mission4 = session.execute_async("SELECT ownerid, ctr FROM adtable WHERE ownerid = 2")
+
+    try:
+        rows = mission4.result()
+    except Exception:
+        log.exeception()
+
+    count = 0
+    mySum = 0
+    for row in rows:
+        mySum += row.ctr
+        count += 1
+
+    print "ownerid\tctr"
+    print "\t".join(["2", str(mySum/count)])
+
+    # Drop the keyspace
+    session.execute("DROP KEYSPACE " + KEYSPACE)
+
+if __name__ == "__main__":
+    main()
 
 ===================== Cassandra: Output of Running the Python Code
-
-
-
-
-
+ownerid	adid	ctr
+1	1	0.10000000149
+1	2	0.0
+1	3	0.0500000007451
+1	4	0.0
+2	1	0.0
+2	2	0.0
+2	3	0.0
+2	4	0.0
+3	1	0.03125
+3	2	0.0
+3	3	0.0454545468092
+3	4	0.0277777779847
+ownerid	ctr
+1	0.0375000005588
+2	0.0
+3	0.0261205811985
+ownerid	adid	ctr
+1	3	0.0500000007451
+ownerid	ctr
+2	0.0
 
 ===================== MongoDB Queries and Outputs
+mongoimport --file zipData.json --db lab7 --collection zipcodes
+mongo
+use lab7
+show collections
+db.zipcodes.insert({ "_id" : "99950", "city" : "KETCHIKAN", "loc" : [ -133.18479, 55.942471 ], "pop" : 422, "state" : "AK" })
 
 
 
 
+
+-  Return cities with population less than 5 million grouped by state.
+db.createCollection('smallcities')
+db.smallcities.insert(db.zipcodes.aggregate([{$group: {_id: {state:"$state", city:"$city"}, totalpop: { $sum: "$pop"}}},{$match:{totalpop: {$lt: 5000000}}}]))
+db.smallcities.find()
+************************
+Had to export the file using mongoexport since it was so big
+cat smallcities.txt
+
+
+
+
+
+ -  Return states sorted by their total city population.
+db.createCollection('sortedstates')
+db.sortedstates.insert(db.zipcodes.aggregate([{$group: {_id: {state:"$state"}, totalpop: { $sum: "$pop"}}},{$sort:{totalpop:-1}}]))
+db.sortedstates.find()
+**********************
+{ "_id" : ObjectId("5467835c3dbbda7a5fdf32b4"), "result" : [ 	{ 	"_id" : { 	"state" : "CA" }, 	"totalpop" : 29754890 }, 	{ "_id" : { 	"state" : "NY" }, 	"totalpop" : 17990402 }, 	{ "_id" : { 	"state" : "TX" }, 	"totalpop" : 16984601 }, 	{ "_id" : { 	"state" : "FL" }, 	"totalpop" : 12686644 }, 	{ "_id" : { 	"state" : "PA" }, 	"totalpop" : 11881643 }, 	{ "_id" : { 	"state" : "IL" }, 	"totalpop" : 11427576 }, 	{ "_id" : { 	"state" : "OH" }, 	"totalpop" : 10846517 }, 	{ "_id" : { 	"state" : "MI" }, 	"totalpop" : 9295297 }, 	{ "_id" : { 	"state" : "NJ" }, 	"totalpop" : 7730188 }, 	{ "_id" : { 	"state" : "NC" }, 	"totalpop" : 6628637 }, 	{ "_id" : { 	"state" : "GA" }, 	"totalpop" : 6478216 }, 	{ "_id" : { 	"state" : "VA" }, 	"totalpop" : 6181479 }, 	{ "_id" : { 	"state" : "MA" }, 	"totalpop" : 6016425 }, 	{ "_id" : { 	"state" : "IN" }, 	"totalpop" : 5544136 }, 	{ "_id" : { 	"state" : "MO" }, 	"totalpop" : 5110648 }, 	{ "_id" : { 	"state" : "WI" }, 	"totalpop" : 4891769 }, 	{ "_id" : { 	"state" : "TN" }, 	"totalpop" : 4876457 }, 	{ "_id" : { 	"state" : "WA" }, 	"totalpop" : 4866692 }, 	{ "_id" : { 	"state" : "MD" }, 	"totalpop" : 4781379 }, 	{ "_id" : { 	"state" : "MN" }, 	"totalpop" : 4372982 }, 	{ "_id" : { 	"state" : "LA" }, 	"totalpop" : 4217595 }, 	{ "_id" : { 	"state" : "AL" }, 	"totalpop" : 4040587 }, 	{ "_id" : { 	"state" : "KY" }, 	"totalpop" : 3675484 }, 	{ "_id" : { 	"state" : "AZ" }, 	"totalpop" : 3665228 }, 	{ "_id" : { 	"state" : "SC" }, 	"totalpop" : 3486703 }, 	{ "_id" : { 	"state" : "CO" }, 	"totalpop" : 3293755 }, 	{ "_id" : { 	"state" : "CT" }, 	"totalpop" : 3287116 }, 	{ "_id" : { 	"state" : "OK" }, 	"totalpop" : 3145585 }, 	{ "_id" : { 	"state" : "OR" }, 	"totalpop" : 2842321 }, 	{ "_id" : { 	"state" : "IA" }, 	"totalpop" : 2776420 }, 	{ "_id" : { 	"state" : "MS" }, 	"totalpop" : 2573216 }, 	{ "_id" : { 	"state" : "KS" }, 	"totalpop" : 2475285 }, 	{ "_id" : { 	"state" : "AR" }, 	"totalpop" : 2350725 }, 	{ "_id" : { 	"state" : "WV" }, 	"totalpop" : 1793146 }, 	{ "_id" : { 	"state" : "UT" }, 	"totalpop" : 1722850 }, 	{ "_id" : { 	"state" : "NE" }, 	"totalpop" : 1578139 }, 	{ "_id" : { 	"state" : "NM" }, 	"totalpop" : 1515069 }, 	{ "_id" : { 	"state" : "ME" }, 	"totalpop" : 1226648 }, 	{ "_id" : { 	"state" : "NV" }, 	"totalpop" : 1201833 }, 	{ "_id" : { 	"state" : "NH" }, 	"totalpop" : 1109252 }, 	{ "_id" : { 	"state" : "HI" }, 	"totalpop" : 1108229 }, 	{ "_id" : { 	"state" : "ID" }, 	"totalpop" : 1006749 }, 	{ "_id" : { 	"state" : "RI" }, 	"totalpop" : 1003218 }, 	{ "_id" : { 	"state" : "MT" }, 	"totalpop" : 798948 }, 	{ 	"_id" : { 	"state" : "SD" }, 	"totalpop" : 695397 }, 	{ 	"_id" : { 	"state" : "DE" }, 	"totalpop" : 666168 }, 	{ 	"_id" : { 	"state" : "ND" }, 	"totalpop" : 638272 }, 	{ 	"_id" : { 	"state" : "DC" }, 	"totalpop" : 606900 }, 	{ 	"_id" : { 	"state" : "VT" }, 	"totalpop" : 562758 }, 	{ 	"_id" : { 	"state" : "AK" }, 	"totalpop" : 544698 }, 	{ 	"_id" : { 	"state" : "WY" }, 	"totalpop" : 453528 } ], "ok" : 1 
+
+
+
+
+ -  Return the cities with minimum population by state.
+db.createCollection('mincities')
+db.mincities.insert(db.zipcodes.aggregate([{$group: {_id: {state:"$state", city:"$city"}, totalpop: { $sum: "$pop"}}},{$sort:{totalpop:1}}, {$group: {_id:"$_id.state", mincity: {$first:"$totalpop"}}}])))
+db.mincities.find()
+*************************
+{
+	"result" : [
+		{
+			"_id" : "IN",
+			"mincity" : 145
+		},
+		{
+			"_id" : "RI",
+			"mincity" : 45
+		},
+		{
+			"_id" : "OH",
+			"mincity" : 38
+		},
+		{
+			"_id" : "MD",
+			"mincity" : 32
+		},
+		{
+			"_id" : "NH",
+			"mincity" : 27
+		},
+		{
+			"_id" : "MA",
+			"mincity" : 16
+		},
+		{
+			"_id" : "DC",
+			"mincity" : 21
+		},
+		{
+			"_id" : "MN",
+			"mincity" : 12
+		},
+		{
+			"_id" : "ND",
+			"mincity" : 12
+		},
+		{
+			"_id" : "UT",
+			"mincity" : 9
+		},
+		{
+			"_id" : "OK",
+			"mincity" : 8
+		},
+		{
+			"_id" : "MT",
+			"mincity" : 7
+		},
+		{
+			"_id" : "NE",
+			"mincity" : 5
+		},
+		{
+			"_id" : "TN",
+			"mincity" : 2
+		},
+		{
+			"_id" : "WA",
+			"mincity" : 2
+		},
+		{
+			"_id" : "DE",
+			"mincity" : 108
+		},
+		{
+			"_id" : "NV",
+			"mincity" : 1
+		},
+		{
+			"_id" : "CT",
+			"mincity" : 25
+		},
+		{
+			"_id" : "AL",
+			"mincity" : 0
+		},
+		{
+			"_id" : "VA",
+			"mincity" : 0
+		},
+		{
+			"_id" : "LA",
+			"mincity" : 0
+		},
+		{
+			"_id" : "MS",
+			"mincity" : 79
+		},
+		{
+			"_id" : "KS",
+			"mincity" : 0
+		},
+		{
+			"_id" : "AZ",
+			"mincity" : 2
+		},
+		{
+			"_id" : "CO",
+			"mincity" : 0
+		},
+		{
+			"_id" : "IA",
+			"mincity" : 15
+		},
+		{
+			"_id" : "NC",
+			"mincity" : 0
+		},
+		{
+			"_id" : "SC",
+			"mincity" : 0
+		},
+		{
+			"_id" : "PA",
+			"mincity" : 0
+		},
+		{
+			"_id" : "VT",
+			"mincity" : 0
+		},
+		{
+			"_id" : "CA",
+			"mincity" : 0
+		},
+		{
+			"_id" : "WI",
+			"mincity" : 2
+		},
+		{
+			"_id" : "KY",
+			"mincity" : 0
+		},
+		{
+			"_id" : "ID",
+			"mincity" : 0
+		},
+		{
+			"_id" : "OR",
+			"mincity" : 0
+		},
+		{
+			"_id" : "NM",
+			"mincity" : 0
+		},
+		{
+			"_id" : "FL",
+			"mincity" : 0
+		},
+		{
+			"_id" : "NY",
+			"mincity" : 0
+		},
+		{
+			"_id" : "WY",
+			"mincity" : 6
+		},
+		{
+			"_id" : "MI",
+			"mincity" : 0
+		},
+		{
+			"_id" : "HI",
+			"mincity" : 0
+		},
+		{
+			"_id" : "MO",
+			"mincity" : 44
+		},
+		{
+			"_id" : "TX",
+			"mincity" : 0
+		},
+		{
+			"_id" : "IL",
+			"mincity" : 38
+		},
+		{
+			"_id" : "NJ",
+			"mincity" : 17
+		},
+		{
+			"_id" : "AR",
+			"mincity" : 0
+		},
+		{
+			"_id" : "SD",
+			"mincity" : 8
+		},
+		{
+			"_id" : "AK",
+			"mincity" : 0
+		},
+		{
+			"_id" : "GA",
+			"mincity" : 0
+		},
+		{
+			"_id" : "ME",
+			"mincity" : 0
+		},
+		{
+			"_id" : "WV",
+			"mincity" : 0
+		}
+	],
+	"ok" : 1
+}
+
+
+
+
+
+- Finally, write a MapReduce operation to compute, for each state, the average population over the cities associated with the state. 
+
+var mapFunction = function() { emit(this.state, this.pop) };
+var reduceFunction = function(key, valueArray) { return Array.avg(valueArray) };
+db.zipcodes.mapReduce(mapFunction, reduceFunction, {out: "averageCityPopulation"})
+******************
+db.averageCityPopulation.find()
+{ "_id" : "AK", "value" : 1621.0776494316099 }
+{ "_id" : "AL", "value" : 6604.685668130592 }
+{ "_id" : "AR", "value" : 17500.826721704307 }
+{ "_id" : "AZ", "value" : 6185.8376294807695 }
+{ "_id" : "CA", "value" : 5014.419895507914 }
+{ "_id" : "CO", "value" : 3794.961518103799 }
+{ "_id" : "CT", "value" : 13052.604281719165 }
+{ "_id" : "DC", "value" : 25287.5 }
+{ "_id" : "DE", "value" : 6602.386111111111 }
+{ "_id" : "FL", "value" : 10550.253797453464 }
+{ "_id" : "GA", "value" : 8337.455969617935 }
+{ "_id" : "HI", "value" : 13852.8625 }
+{ "_id" : "IA", "value" : 6096.249782249409 }
+{ "_id" : "ID", "value" : 3725.1594358396237 }
+{ "_id" : "IL", "value" : 1416.5168669156944 }
+{ "_id" : "IN", "value" : 3053.8261303566273 }
+{ "_id" : "KS", "value" : 2213.4112286216487 }
+{ "_id" : "KY", "value" : 3517.082908698895 }
+{ "_id" : "LA", "value" : 3673.1212744438317 }
+{ "_id" : "MA", "value" : 9098.16854810248 }
