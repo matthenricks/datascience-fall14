@@ -36,20 +36,13 @@ import org.umd.assignment.spout.TwitterSampleSpout;
 import org.yaml.snakeyaml.reader.StreamReader;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.locks.Lock;
 
 /**
  * This topology demonstrates Storm's stream groupings and multilang capabilities.
@@ -100,56 +93,20 @@ public class WordCountTopology {
 			}
     	}
 
-		String word = tuple.getString(0);
-		if (stopWords.contains(word) == false) {
-			Integer count = counts.get(word);
-			if (count == null)
-				count = 0;
-			count++;
-			counts.put(word, count);
-			collector.emit(new Values(word, count));
-		}
+	String word = tuple.getString(0);
+	if (stopWords.contains(word) == false) {
+		Integer count = counts.get(word);
+		if (count == null)
+			count = 0;
+		count++;
+		counts.put(word, count);
+		collector.emit(new Values(word, count));
+	}
     }
 
-    volatile boolean isWritten = false;
-    
 	@Override
 	public void cleanup()
 	{
-		// These are just threads within the node, right?
-		// If so, this should work!
-		synchronized(this) {
-			
-			if (!isWritten) {
-				String outputFile = "/home/matthenricks/datascience-fall14/lab8/Storm-Assignment/output.txt";
-				
-				@SuppressWarnings("unchecked")
-				Entry<String, Integer>[] wordArr = (Entry<String, Integer>[]) counts.entrySet().toArray();
-				Arrays.sort(wordArr, new Comparator<Entry<String, Integer>>() {	
-					@Override
-					public int compare(Entry<String, Integer> arg0,
-							Entry<String, Integer> arg1) {
-						return arg0.getValue() - arg1.getValue();
-					}
-					
-				});
-			
-				BufferedWriter writer;
-				try {
-					writer = new BufferedWriter(new FileWriter(new File(outputFile), false));
-					for (Entry<String, Integer> entry : wordArr) {
-						writer.write(entry.getKey());
-						writer.newLine();
-					}
-					writer.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-					
-				isWritten = true;
-			}
-		}
-
 		// ------------------------  Task 3 ---------------------------------------
 		//
 		//
@@ -216,7 +173,7 @@ public class WordCountTopology {
 	  //
 	  // ----------------------------------------------------------------------
 
-      Thread.sleep(10000);
+      Thread.sleep(60000);
       // Thread.sleep(600000);
 
       cluster.shutdown(); // blot "cleanup" function is called when cluster is shutdown (only works in local mode)

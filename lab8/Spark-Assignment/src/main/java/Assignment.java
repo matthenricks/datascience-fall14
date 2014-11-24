@@ -15,10 +15,12 @@
  * limitations under the License.
  */
 import scala.Tuple2;
+
 import com.google.common.collect.Lists;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.api.java.StorageLevels;
@@ -47,24 +49,61 @@ public final class Assignment {
                 "localhost", Integer.parseInt("9999"), StorageLevels.MEMORY_AND_DISK_SER);
 
         JavaDStream<String> words = lines.flatMap(new FlatMapFunction<String, String>() {
-                @Override
-                public Iterable<String> call(String x) {
-                return Lists.newArrayList(SPACE.split(x));
-                }
+                	@Override
+	                public Iterable<String> call(String x) {
+	                	return Lists.newArrayList(SPACE.split(x));
+	                }
                 });
 
         JavaPairDStream<String, Integer> wordCounts = words.mapToPair(
                 new PairFunction<String, String, Integer>() {
-                @Override
-                public Tuple2<String, Integer> call(String s) {
-                return new Tuple2<String, Integer>(s, 1);
-                }
+	                /**
+					 * 
+					 */
+					private static final long serialVersionUID = 1L;
+
+					@Override
+	                public Tuple2<String, Integer> call(String s) {
+	                	return new Tuple2<String, Integer>(s, 1);
+	                }
                 });
+        
+        // Create a sliding window around 
+        JavaPairDStream<String, Integer> movingWindow = wordCounts.reduceByKeyAndWindow(
+        		new Function2<Integer, Integer, Integer>() {
+        			private static final long serialVersionUID = 1L;
+					public Integer call(Integer i1, Integer i2) { return i1 + i2; }
+        		}, // Reduce function -- when a number enters
+        		new Function2<Integer, Integer, Integer>() {
+        			/**
+					 * 
+					 */
+					private static final long serialVersionUID = 1L;
 
-        wordCounts.print();
+					public Integer call(Integer i1, Integer i2) { return i1 - i2; }
+        		}, // Reduce Inverse - when something falls out
+        		new Duration(3 * 10 * 1000), // Window size - 30 seconds
+        		new Duration(10 * 1000) // Window step - each 10 seconds
+        		);
+        
+        // Filter out the 0's
+        JavaPairDStream<String, Integer> filteredWindow = movingWindow.filter(new Function<Tuple2<String, Integer>, Boolean>() {
+			private static final long serialVersionUID = 1L;
 
+			@Override
+			public Boolean call(Tuple2<String, Integer> arg0) throws Exception {
+				return (arg0._2 != 0);
+			}
+        });
+        
+        filteredWindow.print();
+
+        ssc.sparkContext().setCheckpointDir("/home/matthenricks/datascience-fall14/lab8/Spark-Assignment/checkpoints/");
+        
         ssc.start();
-
+        
+        // ssc.checkpoint();
+        
         ssc.awaitTermination();
     }
 }

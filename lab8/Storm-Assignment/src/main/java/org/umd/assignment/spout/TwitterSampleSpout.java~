@@ -85,7 +85,7 @@ public class TwitterSampleSpout extends BaseRichSpout {
 	public TwitterSampleSpout() {		
 		this.consumerKey = "11hTcdtHAdKue7boNf1lrViYI";
 		this.consumerSecret = "rS1TNq8k6vUYhUtrLiDLYqzbBqyhPU4FoAfnNVWfaEiQ1B1UVc";
-		this.accessToken = "1263513457-7a2Pjqnk0cnveFYM9Kd141CZzr708vCQrgciJfx";
+		this.accessToken = "c11412092- 1263513457-7a2Pjqnk0cnveFYM9Kd141CZzr708vCQrgciJfx";
 		this.accessTokenSecret = "0lJ3mdMACWq1wd8bN8I6VxdQpSBGCR0diZd9EpNrIfPKg";
 		this.keyWords = new String[1];
 		this.keyWords[0] = "obama"; /* Filters All Tweets with word Obama */
