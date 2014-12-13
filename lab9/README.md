@@ -21,8 +21,7 @@ Neo4j is a leading open-source graph database system, perhaps the most widely us
 1. Start the server by running: `./bin/neo4j`
 
 1. Open your browser and go to: [http://localhost:7474/](https://localhost:7474). Follow the `Jump into code` tutorial which creates a Movie Graph, and illustrates how to run Cypher (Neo4j query
-language) queries on it. The UI of the tutorial is somewhat confusing, especially since it also allows you to browse the data graphically. Make sure to scroll down if you
-can't find the queries or the next steps in the tutorial.
+language) queries on it. The UI of the tutorial is somewhat confusing, especially since it also allows you to browse the data graphically. Make sure to scroll down if you can't find the queries or the next steps in the tutorial.
 
 1. If you prefer to use a shell, in the Terminal, type: `./bin/neo4j-shell`. You can run the same queries, but make sure to terminate with a `;`.
 
@@ -74,6 +73,10 @@ import org.apache.spark.rdd.RDD
 
 * Load some data. First we will define two arrays.
 ```
+import org.apache.spark.graphx._
+import org.apache.spark.graphx.lib._
+import org.apache.spark.rdd.RDD
+
 val vertexArray = Array(
   (1L, ("Alice", 28)),
   (2L, ("Bob", 27)),
@@ -92,6 +95,10 @@ val edgeArray = Array(
   Edge(5L, 3L, 8),
   Edge(5L, 6L, 3)
   )
+
+val vertexRDD: RDD[(Long, (String, Int))] = sc.parallelize(vertexArray)
+val edgeRDD: RDD[Edge[Int]] = sc.parallelize(edgeArray)
+val graph: Graph[(String, Int), Int] = Graph(vertexRDD, edgeRDD)
 ```
 
 * Then we will create the graph out of them, by first creating two RDDs. The first two statements create RDDs by using the `sc.parallelize()` command.
@@ -194,11 +201,133 @@ Add both your commands/code and the output (truncated if it is too much) into th
 
 1. Understand and print the output of the `graph.triangleCount` function. The output should look like: "Bob participates in 2 triangles." (with one line per user).
 
+case class User(name: String, age: Int)
+val userGraph = graph.mapVertices{ case (id, (name, age)) => User(name, age) }
+userGraph.triangleCount.vertices.leftJoin(userGraph.vertices) { case(id, orig, u) => s"${u.get.name} participates in ${orig.get} triangles"}.collect().foreach {case(id, st) => println(st)}
+
+David participates in 1 triangles
+Fran participates in 1 triangles
+Bob participates in 2 triangles
+Alice participates in 1 triangles
+Charlie participates in 2 triangles
+Ed participates in 2 triangles
+
+
 1. Understand and print the output of the `olderUsers.connectedComponents` function. The output should look like: "Bob is in connected component 1" (with one line per user).
 
-1. Modify the `mapReduceTriplets`-based aggregation code above to find, for each user (in the randomly generated graph), the followers with the maximum and second-maximum
-ages. 
 
-1. The provided file `states.txt` contains code to generate a small graph where each node is a state, each edge denotes a border between two states and the property of the
-edge is the length of the border. Modify the above `mapReduceTriplets`-based aggreagtion code to find, for each state, the state with which it shares the longest border. 
+userGraph.connectedComponents.vertices.leftJoin(userGraph.vertices) { case(id, orig, u) => s"${u.get.name} is in ${orig.get} connected components"}.collect().foreach {case(id, st) => println(st)}
+
+David is in 1 connected components
+Fran is in 1 connected components
+Bob is in 1 connected components
+Alice is in 1 connected components
+Charlie is in 1 connected components
+Ed is in 1 connected components
+
+1. Modify the `mapReduceTriplets`-based aggregation code above to find, for each user (in the randomly generated graph), the followers with the maximum and second-maximum ages. 
+
+import org.apache.spark.graphx.util.GraphGenerators
+val graph: Graph[Double, Int] =
+  GraphGenerators.rmatGraph(sc, 40, 200).mapVertices( (id, _) => id.toDouble )
+
+val olderFollowers: VertexRDD[((Long, Double), (Long, Double))] = graph.mapReduceTriplets[((Long, Double), (Long, Double))](
+  triplet => { // Map Function
+    // Send message to destination vertex containing counter and age
+    Iterator((triplet.dstId, ((triplet.srcId, triplet.srcAttr), (0L, 0))))
+  },
+  (a, b) => {
+		var leftside = (0L, 0)
+		var rightside = (0L, 0)	
+		if (a._1._2 > b._1._2) {
+			leftside = (a._1._1, a._1._2)
+			if (a._2._2 >= b._2._2) {
+				rightside = (a._2._1, a._2._2)
+			} 
+		} else if (a._1._2 == b._1._2) {
+			leftside = (a._1._1, a._1._2)
+			rightside = (a._2._1, a._2._2)
+		} else {
+			leftside = (b._1._1, b._1._2)
+			if (a._1._2 >= b._2._2) {
+				rightside = (a._1._1, a._1._2)
+			} else {
+				rightside = (b._2._1, b._2._2)
+			}
+		} 
+		return (leftside, rightside)
+	}
+)
+// Divide total age by number of older followers to get average age of older followers
+val avgAgeOfOlderFollowers: VertexRDD[Double] =
+  olderFollowers.mapValues( (id, value) => value match { case (count, totalAge) => totalAge / count } )
+// Display the results
+avgAgeOfOlderFollowers.collect.foreach(println(_))
+
+
+1. The provided file `states.txt` contains code to generate a small graph where each node is a state, each edge denotes a border between two states and the property of the edge is the length of the border. Modify the above `mapReduceTriplets`-based aggregation code to find, for each state, the state with which it shares the longest border. 
 Note that DC is counted is a state here, whereas Alaska and Hawaii are not present in the dataset.
+
+
+val maxState: VertexRDD[(Long, Double)] = graph1.mapReduceTriplets[(Long, Double)](
+  state => { // Map Function
+    // Send message to destination vertex containing counter and age
+    Iterator((state.dstId, (state.srcId, state.attr)))
+  },
+  (a, b) => {
+		if (a._2 >= b._2) {
+			(a._1, a._2)
+		} else {
+			(b._1, b._2)
+		} 
+	}
+)
+
+maxState.collect().foreach{println(_)}
+
+
+(34,(13,178.8))
+(4,(2,198.4))
+(16,(13,296.0))
+(22,(14,262.1))
+(28,(18,159.3))
+(46,(36,385.8))
+(48,(22,291.1))
+(30,(2,391.0))
+(14,(12,200.5))
+(32,(10,68.6))
+(36,(11,305.8))
+(24,(12,331.6))
+(42,(35,715.4))
+(40,(26,399.4))
+(38,(20,62.6))
+(44,(28,180.0))
+(20,(6,86.5))
+(26,(15,356.5))
+(10,(1,291.3))
+(13,(12,295.5))
+(19,(8,122.0))
+(41,(16,338.5))
+(39,(32,312.2))
+(15,(5,207.7))
+(21,(13,108.4))
+(47,(45,381.2))
+(25,(11,569.8))
+(29,(8,1.4))
+(35,(15,409.1))
+(27,(4,608.2))
+(33,(22,217.1))
+(37,(31,306.1))
+(23,(17,456.6))
+(45,(32,327.7))
+(17,(3,166.5))
+(9,(1,196.1))
+(49,(25,377.7))
+(31,(29,103.4))
+(43,(27,344.6))
+(5,(2,0.0))
+
+
+
+
+
